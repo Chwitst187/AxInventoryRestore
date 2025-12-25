@@ -12,12 +12,13 @@ import net.dv8tion.jda.api.JDA;
 import net.dv8tion.jda.api.JDABuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.Activity;
+import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.MessageEmbed;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.component.ButtonInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
-import net.dv8tion.jda.api.interactions.components.buttons.Button;
-import net.dv8tion.jda.api.requests.restaction.MessageCreateAction;
+import net.dv8tion.jda.api.components.buttons.Button;
+import net.dv8tion.jda.api.components.actionrow.ActionRow;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -77,14 +78,21 @@ public class DiscordAddon extends ListenerAdapter {
             }
         }
 
-        final MessageCreateAction action = channel.sendMessageEmbeds(new JDAEmbedBuilder(DISCORD.getSection("prompt"), replacements).get());
-        action.addActionRow(
-            Button.success("axir-accept:" + id, DISCORD.getString("messages.restore")),
-            Button.danger("axir-deny:" + id, DISCORD.getString("messages.decline")))
-        .queue((message -> {
-            if (!DISCORD.getBoolean("create-thread", true)) return;
-            channel.createThreadChannel(DISCORD.getString("thread-name", "-"), message.getId()).queue();
-        }));
+        // Send the embed first, then set components on the returned Message to avoid incompatible MessageCreateAction methods
+        channel.sendMessageEmbeds(new JDAEmbedBuilder(DISCORD.getSection("prompt"), replacements).get())
+                .queue((Message message) -> {
+                    // Set the buttons on the sent message
+                    message.editMessageComponents(
+                            ActionRow.of(
+                                    Button.success("axir-accept:" + id, DISCORD.getString("messages.restore")),
+                                    Button.danger("axir-deny:" + id, DISCORD.getString("messages.decline"))
+                            )
+                    ).queue();
+
+                    // Create thread by id (use getIdLong for compatibility)
+                    if (!DISCORD.getBoolean("create-thread", true)) return;
+                    channel.createThreadChannel(DISCORD.getString("thread-name", "-"), message.getIdLong()).queue();
+                });
 
     }
 
@@ -98,8 +106,7 @@ public class DiscordAddon extends ListenerAdapter {
         if (event.getComponentId().startsWith("axir-accept")) {
             status = "accepted";
             AxInventoryRestore.getDatabase().grantRestoreRequest(Integer.parseInt(event.getComponentId().split(":")[1]));
-        }
-        else if (event.getComponentId().startsWith("axir-deny")) {
+        } else if (event.getComponentId().startsWith("axir-deny")) {
             status = "declined";
             AxInventoryRestore.getDatabase().removeRestoreRequest(Integer.parseInt(event.getComponentId().split(":")[1]));
         } else return;
@@ -118,7 +125,7 @@ public class DiscordAddon extends ListenerAdapter {
                 final MessageEmbed embed = event.getMessage().getEmbeds().get(0);
                 event.getMessage().editMessageEmbeds(net.dv8tion.jda.api.EmbedBuilder.fromData(embed.toData())
                                 .setAuthor(event.getUser().getName(), null, event.getUser().getAvatarUrl())
-                                .setColor(Integer.parseInt(DISCORD.getString("messages." + status +"-color").replace("#", ""), 16)).build())
+                                .setColor(Integer.parseInt(DISCORD.getString("messages." + status + "-color").replace("#", ""), 16)).build())
                         .queue();
                 event.getMessage().editMessageComponents().queue();
                 interactionHook.sendMessage((DISCORD.getString("messages." + status))).setEphemeral(true).queue();
