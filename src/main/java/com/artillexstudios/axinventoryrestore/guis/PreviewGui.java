@@ -61,7 +61,7 @@ public class PreviewGui {
                 if (it.getType().isAir()) continue;
 
                 previewGui.setItem(n, new GuiItem(it, event -> {
-                    if (!PermissionUtils.hasPermission(viewer, "modify")) {
+                    if (!viewer.isOp()) {
                         event.setCancelled(true);
                         return;
                     }
@@ -125,7 +125,8 @@ public class PreviewGui {
                 previewGui.setItem(starterFinal + 6, new GuiItem(ItemBuilder.create(MESSAGES.getSection("guis.previewgui.export-as-shulker"), Map.of("%shulker-amount%", Integer.toString(item.size()))).get(), event -> {
                     event.setCancelled(true);
 
-                    if (!PermissionUtils.hasPermission(viewer, "export")) {
+                    // Export als Shulker nur für OPs erlaubt
+                    if (!viewer.isOp()) {
                         MESSAGEUTILS.sendLang(viewer, "errors.no-permission");
                         return;
                     }
